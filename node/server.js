@@ -1,38 +1,30 @@
-var request = require('request');
 var http = require('http');
-
+var request = require('request');
+var zlib = require('zlib');
 var url = require('url');
 var fs = require('fs');
-var zlib = require('zlib');
 var server;
 
 server = http.createServer(function(req, res){
     // your normal server code
     var path = url.parse(req.url).pathname;
-    console.log(req.method);
     switch (path){
         case '/':
             res.writeHead(200, {'Content-Type': 'text/html'});
             res.write('<h1>Hello! Try the <a href="/test.html">Test page</a></h1>');
             res.end();
-            JSON.stringify(res);
-            console.log(res);
             break;
         case '/test.html':
             fs.readFile(__dirname + path, function(err, data){
                 if (err){ 
                     return send404(res);
                 }
-                res.writeHead(200, {'Content-Type': path == 'json.js' ? 'text/javascript' : 'text/html'});
+                res.writeHead(200, {'Content-Type': path == 'json.js' ? 'text/javascript' : 'text.html'});
                 res.write(data, 'utf8');
                 res.end();
             });
         break;
-        default:
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write('Fuck You ED');
-        res.end();
-
+        default: send404(res);
     }
 }),
 
@@ -42,7 +34,7 @@ send404 = function(res){
     res.end();
 };
 
-server.listen(8001);
+server.listen(8002);
 
 // use socket.io
 var io = require('socket.io').listen(server);
@@ -53,16 +45,38 @@ var io = require('socket.io').listen(server);
 io.sockets.on('connection', function(socket){
     //send data to client
     setInterval(function(){
-        socket.emit('date', {'date': new Date()});
-    }, 1000);
+        //socket.emit('date', {'date': new Date()});
+    }, 1000);   
 
     //recieve client data
     socket.on('client_data', function(data){
-        process.stdout.write(data);
-        //socket.emit('server_data', {'letter': ""+data.letter});
-       // stackSearch(data.letter,function(responeText){
-        //  socket.emit('server_data', {'letter': ""+responeText});  
-       // })
+         process.stdout.write(data);
+         stackSearch(data,function(x){
+            socket.emit('server_data', x);
+            console.log(x);
+        });
+
+    });
+    socket.on('url', function(data){
+        console.log(data.url);
+        var links = data.url.split('\n');
+        console.log(JSON.stringify(links));
+        io.emit('newurl', 'ed do you fuckin see htis?');
+        io.emit('newurl', {urlList:JSON.stringify(links) });
+
+    });
+
+
+     socket.on('urll', function(data){
+        console.log(data);
+
+
+        stackSearch(data,function(x){
+            socket.emit('server_data', x);
+            console.log(x);
+        });
+       
+
 
     });
 });
@@ -70,24 +84,68 @@ io.sockets.on('connection', function(socket){
 
 function stackSearch(q,callback) {
 
-  
     var so_url = "https://api.stackexchange.com/search/advanced?order=desc&sort=activity&q="+encodeURIComponent(q)+"&filter=default&site=stackoverflow";
-
-    console.log(so_url+"\n");
-    request(so_url, {encoding: null},function (error, response, body) {
+    var googleURL = "https://www.googleapis.com/customsearch/v1?q="+encodeURIComponent(q)+"&cx=010344413874094446100%3A7t0sbj9tk7g&siteSearch=stackoverflow.com&key=AIzaSyALTCTmFqGeSS5RGz2wiGUWv4JKx7eYmCY"
+    console.log(googleURL+"\n");
+    request(googleURL,function (error, response, body) {
         if (!error && response.statusCode == 200) {
-            
+            var gJson = JSON.parse(body);
+            if(typeof gJson["items"] != 'undefined'){
+                var xString = gJson["items"][0].link;
+                var qindex=  xString.indexOf("/questions/");
+                var id = xString.substr(qindex+11,8);
+                var so_url2 =  "https://api.stackexchange.com/2.2/questions/"+id+"/comments?order=desc&sort=creation&site=stackoverflow&filter=withbody";
+
+                console.log("SO\t"+so_url2+"\n");
+                request(so_url2, {encoding: null},function (error, response, body) {
+                    if (!error && response.statusCode == 200) {
+                        
+
+
+                        console.log(response.headers);
+                        var encoding = response.headers['content-encoding']
+                        if (encoding && encoding.indexOf('gzip') >= 0) {
+                                zlib.gunzip(body, function(err, dezipped) {
+                                    console.log(err+" \n");
+                                    var json_string = dezipped.toString('utf-8');
+                                    console.log(json_string);
+                                    var soJSON = JSON.parse(json_string);
+                                    // console.log(dezipped.toString());
+                                    if(typeof soJSON["items"]  != 'undefined'){
+                                        var commentBody = soJSON["items"][0].body;
+                                        console.log("CB\t"+commentBody+"\n");
+                                        callback(commentBody);
+                                    }
+                                });
+                        } else {
+                          // Response is not gzipped
+                        }
+
+                    } else {
+                        console.log("so fucked up\n")
+                    }
+                });
+            } else {
+                console.log("Item Size " + gJson["items"].size + "\n");
+                //console.log(body+"\n");
+
+            }
+        }else {
+            console.log("Google fucked up"+body+"\n")
+        }
+    });
+}
+
 
           
             
-            console.log(response.headers);
+      /*    console.log(response.headers);
             var encoding = response.headers['content-encoding']
             if (encoding && encoding.indexOf('gzip') >= 0) {
                   zlib.gunzip(body, function(err, dezipped) {
                     console.log(err+" \n");
                     var json_string = dezipped.toString('utf-8');
                     var json = JSON.parse(json_string);
-                    
                    // console.log(json.toString());
                    // console.log(dezipped.toString());
                     fs.writeFile("testTestTest", dezipped.toString(), function(error) {
@@ -97,19 +155,13 @@ function stackSearch(q,callback) {
                            console.log("Successful Write to ");
                          }
                     });    
-                    callback(dezipped.toString());
+                    callback(json.items[0].link);
                   });
             } else {
               // Response is not gzipped
             }
-
-
-            
-
-
-
         }
-    });
+    });*/
 
 
 
@@ -130,4 +182,3 @@ function stackSearch(q,callback) {
         });
     }); */
 
-}
