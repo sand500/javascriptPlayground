@@ -5,6 +5,14 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.js"></script>
   </head>
+  <style>
+#serverReply{
+  border: 1px solid black;
+  width:  1800px;
+  height: 500px;
+   display: block;
+}
+</style>
   <body>
     <script>    
       var socket = io.connect();
@@ -14,20 +22,21 @@
       });
 
       socket.on('server_data', function(data){
-        $("#serverReply").append(data);
-        console.log(data);
+        $("#serverReply").empty().text(""+data.letter);
+        console.log(data.letter);
       });
 
       $(document).ready(function(){
-        $('#text').keypress(function(e){
-          socket.emit('client_data', {'letter': String.fromCharCode(e.charCode)});
+        $('#text').change(function(e){
+          socket.emit('client_data', {'letter': $(this).val()});
         });
 
 
       });
     </script>
     <div id="date"></div>
-    <textarea id="text"></textarea>
-    <span id="serverReply"> </span>>
+    <input type="text" id="text"></input>
+    </br>
+    <div id="serverReply">  </br> </div>
   </body>
 </html>
