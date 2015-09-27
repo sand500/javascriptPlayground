@@ -1,38 +1,30 @@
-var request = require('request');
 var http = require('http');
+var request = require('request');
 
 var url = require('url');
 var fs = require('fs');
-var zlib = require('zlib');
 var server;
 
 server = http.createServer(function(req, res){
     // your normal server code
     var path = url.parse(req.url).pathname;
-    console.log(req.method);
     switch (path){
         case '/':
             res.writeHead(200, {'Content-Type': 'text/html'});
             res.write('<h1>Hello! Try the <a href="/test.html">Test page</a></h1>');
             res.end();
-            JSON.stringify(res);
-            console.log(res);
             break;
         case '/test.html':
             fs.readFile(__dirname + path, function(err, data){
                 if (err){ 
                     return send404(res);
                 }
-                res.writeHead(200, {'Content-Type': path == 'json.js' ? 'text/javascript' : 'text/html'});
+                res.writeHead(200, {'Content-Type': path == 'json.js' ? 'text/javascript' : 'text.html'});
                 res.write(data, 'utf8');
                 res.end();
             });
         break;
-        default:
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write('Fuck You ED');
-        res.end();
-
+        default: send404(res);
     }
 }),
 
@@ -42,7 +34,7 @@ send404 = function(res){
     res.end();
 };
 
-server.listen(8001);
+server.listen(8002);
 
 // use socket.io
 var io = require('socket.io').listen(server);
@@ -53,19 +45,45 @@ var io = require('socket.io').listen(server);
 io.sockets.on('connection', function(socket){
     //send data to client
     setInterval(function(){
-        socket.emit('date', {'date': new Date()});
-    }, 1000);
+        //socket.emit('date', {'date': new Date()});
+    }, 1000);   
 
     //recieve client data
     socket.on('client_data', function(data){
         process.stdout.write(data);
-        //socket.emit('server_data', {'letter': ""+data.letter});
-       // stackSearch(data.letter,function(responeText){
-        //  socket.emit('server_data', {'letter': ""+responeText});  
-       // })
+         stackSearch(data,function(x){
+            socket.emit('server_data', x);
+            console.log(x);
+        });
+
+    });
+    socket.on('url', function(data){
+        console.log(data.url);
+        var links = data.url.split('\n');
+        console.log(JSON.stringify(links));
+        io.emit('newurl', 'ed do you fuckin see htis?');
+        io.emit('newurl', {urlList:JSON.stringify(links) });
+
+    });
+
+
+     socket.on('ed Shit', function(data){
+        console.log(data);
+
+
+        stackSearch(data,function(x){
+            socket.emit('server_data', x);
+
+        });
+       
+
 
     });
 });
+
+
+
+
 
 
 function stackSearch(q,callback) {
@@ -97,7 +115,7 @@ function stackSearch(q,callback) {
                            console.log("Successful Write to ");
                          }
                     });    
-                    callback(dezipped.toString());
+                    callback(json.items[0].link);
                   });
             } else {
               // Response is not gzipped
